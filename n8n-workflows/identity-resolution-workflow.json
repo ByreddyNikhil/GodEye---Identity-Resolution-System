@@ -1,0 +1,196 @@
+{
+  "name": "Identity Resolution Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "identity",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{\n  email_hash: item.emailHint ? require('crypto').createHash('sha256').update(item.emailHint).digest('hex') : null,\n  domain: item.url,\n  username: item.usernameHint?.toLowerCase() || null\n}];"
+      },
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "query": "SELECT identity_id, confidence FROM identity_nodes WHERE email_hash = {{$json.email_hash}} LIMIT 1;",
+        "database": "postgres"
+      },
+      "name": "Deterministic Match",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.confidence }}",
+              "operation": "equal",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "name": "Strong Match?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are an identity-resolution engine. Compare profiles and return ONLY JSON with match (boolean), confidence (number 0-1), evidence (array of strings), counter_evidence (array of strings)."
+          },
+          {
+            "role": "user",
+            "content": "Profile A: {{ $json.profileA }}\nProfile B: {{ $json.profileB }}"
+          }
+        ]
+      },
+      "name": "LLM Match",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "const det = item.det_confidence || 0;\nconst llm = item.confidence || 0;\nconst platformWeight = item.platform_weight || 0.5;\nconst profileAgeInYears = item.profile_age_years || 0;\nconst counterEvidence = item.counter_evidence || [];\n\n// Penalize confidence if counter-evidence exists\nconst evidencePenalty = counterEvidence.length > 0 ? 0.8 : 1.0;\nconst adjustedLLM = llm * evidencePenalty;\n\n// Temporal decay factor\nconst agePenalty = profileAgeInYears > 3 ? 0.7 : 1.0;\nconst adjustedLLMWithAge = adjustedLLM * agePenalty;\n\nconst fusedLLM = adjustedLLMWithAge * platformWeight;\nconst finalScore = Math.max(det, fusedLLM);\n\nreturn [{\n  finalScore,\n  decision: finalScore >= 0.85 ? 'AUTO_MERGE' : finalScore >= 0.6 ? 'NEEDS_REVIEW' : 'NO_MATCH'\n}];"
+      },
+      "name": "Confidence Fusion",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "identity_nodes",
+        "columns": "email_hash",
+        "database": "postgres"
+      },
+      "name": "DB Upsert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/tool",
+        "method": "POST",
+        "body": "={{ { tool: 'telegram_notify', args: { chatId: '123456', message: 'Identity conflict detected' } } }}",
+        "jsonParameters": true
+      },
+      "name": "MCP Action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Deterministic Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deterministic Match": {
+      "main": [
+        [
+          {
+            "node": "Strong Match?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strong Match?": {
+      "main": [
+        [
+          {
+            "node": "Confidence Fusion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "no": [
+        [
+          {
+            "node": "LLM Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Match": {
+      "main": [
+        [
+          {
+            "node": "Confidence Fusion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence Fusion": {
+      "main": [
+        [
+          {
+            "node": "DB Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Upsert": {
+      "main": [
+        [
+          {
+            "node": "MCP Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null
+}
