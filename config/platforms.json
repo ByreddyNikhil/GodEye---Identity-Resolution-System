@@ -1,0 +1,58 @@
+{
+  "platforms": {
+    "instagram": {
+      "enabled": true,
+      "type": "social",
+      "base_url": "https://instagram.com",
+      "confidence_weight": 0.6,
+      "cache_ttl_minutes": 30,
+      "allowed_fields": ["platform", "username", "display_name", "profile_url", "confidence_weight"]
+    },
+    "facebook": {
+      "enabled": true,
+      "type": "social",
+      "base_url": "https://facebook.com",
+      "confidence_weight": 0.7,
+      "cache_ttl_minutes": 30,
+      "allowed_fields": ["platform", "profile_url", "confidence_weight"]
+    },
+    "linkedin": {
+      "enabled": true,
+      "type": "professional",
+      "base_url": "https://linkedin.com",
+      "confidence_weight": 0.9,
+      "cache_ttl_minutes": 30,
+      "allowed_fields": ["platform", "profile_url", "confidence_weight"]
+    },
+    "snapchat": {
+      "enabled": true,
+      "type": "weak_social",
+      "base_url": "https://snapchat.com",
+      "confidence_weight": 0.3,
+      "cache_ttl_minutes": 30,
+      "allowed_fields": ["platform", "username", "confidence_weight"]
+    },
+    "twitter": {
+      "enabled": false,
+      "type": "social",
+      "base_url": "https://twitter.com",
+      "confidence_weight": 0.8,
+      "cache_ttl_minutes": 30,
+      "allowed_fields": ["platform", "username", "display_name", "profile_url", "confidence_weight"]
+    },
+    "tiktok": {
+      "enabled": false,
+      "type": "social",
+      "base_url": "https://tiktok.com",
+      "confidence_weight": 0.5,
+      "cache_ttl_minutes": 30,
+      "allowed_fields": ["platform", "username", "display_name", "profile_url", "confidence_weight"]
+    }
+  },
+  "global_settings": {
+    "default_cache_ttl_minutes": 30,
+    "max_cache_entries": 1000,
+    "rate_limit_per_platform": 100,
+    "rate_limit_window_minutes": 60
+  }
+}
